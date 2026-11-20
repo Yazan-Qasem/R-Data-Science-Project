@@ -1,0 +1,288 @@
+---
+title: "Heart Disease Prediction Using Data Science Techniques in R"
+subtitle: "Course Project: R Programming (908302) - Al Al-Bayt University"
+author: "Yazan Zuhair Ibrahim Qasem (Student ID: 2200908643)"
+date: "2026-11-20"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    theme: cosmo
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, fig.align = "center")
+```
+
+# Dataset Description
+
+1. **Title of the Dataset:** Heart Prediction Quantum Dataset.
+2. **Source and Origin:** The dataset was obtained from the official course repository provided by the instructor (Dr. Mohammad Al-Awn), originally curated from open-access medical and machine learning repositories (Kaggle) to evaluate cardiovascular risk factors alongside quantum-inspired pattern features.
+3. **Data Collection Method:** The dataset represents clinical and diagnostic measurements recorded from 500 patients, combining standard physiological vital signs with a derived numerical indicator (`QuantumPatternFeature`) designed to capture complex non-linear interactions among health metrics.
+4. **Purpose and Intended Use:** The primary objective of this dataset is to analyze key physiological indicators associated with cardiovascular conditions and to develop predictive classification models capable of identifying patients at high risk of heart disease.
+5. **Variable Descriptions:**
+   * `Age` *(Numeric / Continuous)*: Age of the patient in years.
+   * `Gender` *(Categorical / Binary)*: Biological sex of the patient (`0` = Female, `1` = Male).
+   * `BloodPressure` *(Numeric / Continuous)*: Resting blood pressure measurement (mm Hg).
+   * `Cholesterol` *(Numeric / Continuous)*: Serum cholesterol level (mg/dL).
+   * `HeartRate` *(Numeric / Continuous)*: Heart rate measured in beats per minute (bpm).
+   * `QuantumPatternFeature` *(Numeric / Continuous)*: A continuous engineered diagnostic score capturing complex patterns across clinical attributes.
+   * `HeartDisease` *(Categorical / Target Variable)*: Diagnosis status (`0` = No Disease, `1` = Heart Disease).
+6. **Dataset Dimensions:** The dataset consists of **500 observations (rows)** and **7 attributes (columns)**, meeting all structural requirements for multivariate statistical analysis and machine learning modeling.
+7. **Summary Statistics:** Computed programmatically in Section 2 using custom R functions and `sapply()`.
+8. **Data Quality Assessment:** Comprehensive checks confirmed **zero missing values (`NA`)** and **zero duplicate records**. Categorical variables (`Gender` and `HeartDisease`) were properly encoded as labeled `factor` variables. Boxplots verified that all physiological measurements fall within valid clinical ranges without corrupted entries.
+9. **Limitations and Potential Applications:**
+   * *Limitations:* The dataset contains 500 records and lacks longitudinal patient follow-up data or lifestyle variables (such as smoking status and physical activity). Additionally, the exact mathematical derivation of `QuantumPatternFeature` is abstracted.
+   * *Applications:* Suitable for clinical decision-support prototyping, risk stratification screening, and benchmarking supervised and unsupervised learning algorithms in medical informatics.
+
+***
+```{r load-clean}
+data_raw <- read.csv("../Data/Heart Prediction Quantum Dataset (1).csv")
+data <- data_raw
+
+cat("Dataset Dimensions:", nrow(data), "rows and", ncol(data), "columns.\n")
+cat("Total Missing Values:", sum(is.na(data)), "\n")
+data <- unique(data)
+
+data$Gender <- factor(data$Gender, levels = c(0, 1), labels = c("Female", "Male"))
+data$HeartDisease <- factor(data$HeartDisease, levels = c(0, 1), labels = c("No Disease", "Heart Disease"))
+
+knitr::kable(round(prop.table(table(data$HeartDisease)) * 100, 2),
+             col.names = c("Heart Disease Status", "Percentage (%)"),
+             caption = "Target Variable Class Distribution")
+
+knitr::kable(round(prop.table(table(data$Gender)) * 100, 2),
+             col.names = c("Gender", "Percentage (%)"),
+             caption = "Gender Distribution")
+```
+
+## Descriptive Attribute Statistics
+
+```{r descriptive-stats}
+numeric_cols <- data[, c("Age", "BloodPressure", "Cholesterol", "HeartRate", "QuantumPatternFeature")]
+
+calc_stats <- function(x) {
+  c(
+    Min     = round(min(x, na.rm = TRUE), 2),
+    Max     = round(max(x, na.rm = TRUE), 2),
+    Average = round(mean(x, na.rm = TRUE), 2),
+    Std.Dev = round(sd(x, na.rm = TRUE), 2),
+    Q1      = round(as.numeric(quantile(x, 0.25, na.rm = TRUE)), 2),
+    Q3      = round(as.numeric(quantile(x, 0.75, na.rm = TRUE)), 2)
+  )
+}
+
+stats_df <- as.data.frame(t(sapply(numeric_cols, calc_stats)))
+knitr::kable(stats_df, caption = "Summary Statistics for All Numeric Attributes")
+```
+
+## Data Visualizations
+
+### Histograms & Two-Variable Distribution
+
+```{r histograms, fig.width=10, fig.height=6}
+par(mfrow = c(2, 3))
+for (col_name in names(numeric_cols)) {
+  hist(numeric_cols[[col_name]],
+       main = paste("Distribution of", col_name),
+       xlab = col_name,
+       col = "steelblue",
+       border = "white")
+}
+par(mfrow = c(1, 1))
+```
+
+```{r two-var-hist, fig.width=8, fig.height=5}
+hist(data$Age[data$HeartDisease == "No Disease"],
+     col = rgb(0.2, 0.6, 0.8, 0.5),
+     main = "Age Distribution by Heart Disease Status",
+     xlab = "Age (Years)",
+     xlim = range(data$Age))
+hist(data$Age[data$HeartDisease == "Heart Disease"],
+     col = rgb(0.9, 0.2, 0.2, 0.5),
+     add = TRUE)
+legend("topright", legend = c("No Disease", "Heart Disease"),
+       fill = c(rgb(0.2, 0.6, 0.8, 0.5), rgb(0.9, 0.2, 0.2, 0.5)))
+```
+
+### Box Plots & Pie Charts
+
+```{r boxplots, fig.width=10, fig.height=6}
+par(mfrow = c(2, 3))
+for (col_name in names(numeric_cols)) {
+  boxplot(numeric_cols[[col_name]],
+          main = paste("Boxplot of", col_name),
+          ylab = col_name,
+          col = "lightblue")
+}
+par(mfrow = c(1, 1))
+```
+
+```{r pie-charts, fig.width=9, fig.height=4.5}
+par(mfrow = c(1, 2))
+hd_pct <- round(prop.table(table(data$HeartDisease)) * 100, 1)
+pie(table(data$HeartDisease),
+    labels = paste(names(hd_pct), "\n", hd_pct, "%"),
+    main = "Heart Disease Proportion",
+    col = c("lightgreen", "salmon"))
+
+gen_pct <- round(prop.table(table(data$Gender)) * 100, 1)
+pie(table(data$Gender),
+    labels = paste(names(gen_pct), "\n", gen_pct, "%"),
+    main = "Gender Proportion",
+    col = c("pink", "skyblue"))
+par(mfrow = c(1, 1))
+```
+
+### Percentile Plots
+
+```{r percentile-plots, fig.width=10, fig.height=6}
+par(mfrow = c(2, 3))
+for (col_name in names(numeric_cols)) {
+  sorted_vals <- sort(numeric_cols[[col_name]])
+  percentiles <- (1:length(sorted_vals)) / length(sorted_vals) * 100
+  plot(percentiles, sorted_vals, type = "l", lwd = 2, col = "darkgreen",
+       main = paste("Percentile Plot of", col_name),
+       xlab = "Percentile (%)",
+       ylab = col_name)
+}
+par(mfrow = c(1, 1))
+```
+
+***
+## Multivariate & Correlation Analysis
+
+```{r correlation-scatterplot, fig.width=9, fig.height=6}
+library(corrplot)
+library(car)
+
+cor_matrix <- cor(numeric_cols)
+knitr::kable(round(cor_matrix, 3), caption = "Pearson Correlation Matrix")
+
+corrplot(cor_matrix, method = "color", type = "upper", addCoef.col = "black",
+         tl.col = "black", tl.srt = 45, title = "Correlation Matrix of Numeric Features",
+         mar = c(0, 0, 2, 0))
+
+scatterplotMatrix(numeric_cols,
+                  main = "Matrix Scatterplot of Heart Dataset Features",
+                  col = "steelblue")
+```
+
+**EDA Interpretation:** The dataset exhibits balanced class representation (`60%` Heart Disease vs. `40%` No Disease) and balanced gender proportions. The correlation matrix and scatterplot matrix reveal a notable negative correlation between `Age` and `QuantumPatternFeature`, whereas traditional vital signs (`BloodPressure`, `Cholesterol`, `HeartRate`) show weak linear pairwise correlations, indicating the necessity of non-linear machine learning classifiers.
+
+***
+
+# Part 2: Unsupervised Learning (K-Means Clustering)
+
+To discover natural groupings within the patient cohort without using class labels, K-Means clustering was applied to standardized numeric features across k = 2, 3, 4, and 5:
+
+```{r kmeans, fig.width=10, fig.height=8}
+library(cluster)
+
+scaled_data <- scale(numeric_cols)
+set.seed(123)
+
+par(mfrow = c(2, 2))
+for (k in c(2, 3, 4, 5)) {
+  km_model <- kmeans(scaled_data, centers = k, nstart = 25)
+  clusplot(scaled_data,
+           km_model$cluster,
+           main = paste("K-Means Clustering (k =", k, ")"),
+           color = TRUE,
+           shade = TRUE,
+           labels = 2,
+           lines = 0)
+}
+par(mfrow = c(1, 1))
+
+set.seed(123)
+km_best <- kmeans(scaled_data, centers = 2, nstart = 25)
+knitr::kable(table(Cluster = km_best$cluster, Actual_HeartDisease = data$HeartDisease),
+             caption = "Cross-Tabulation of K-Means (k=2) Clusters vs. Actual Diagnosis")
+```
+
+**Clustering Interpretation:** The first two principal components explain **55.15%** of total variance. With k = 2, Cluster 1 captures the majority of positive heart disease cases (227 out of 300), while Cluster 2 captures the majority of healthy individuals (167 out of 200), confirming strong underlying structural separation. Increasing k to 3, 4, or 5 introduces overlapping sub-clusters.
+
+***
+# Part 3: Supervised Learning (Classification Comparison)
+
+The dataset was partitioned into **70% training (350 records)** and **30% testing (150 records)** sets using `set.seed(123)`. Four supervised algorithms—**Naive Bayes**, **Decision Tree**, **K-Nearest Neighbors (KNN)**, and **Support Vector Machine (SVM)**—were trained and evaluated using a custom evaluation function:
+
+```{r supervised-ml, fig.width=8, fig.height=5}
+library(e1071)
+library(rpart)
+library(class)
+
+ml_data <- data_raw
+ml_data$Gender <- as.factor(ml_data$Gender)
+ml_data$HeartDisease <- factor(ml_data$HeartDisease, levels = c(0, 1), labels = c("No", "Yes"))
+
+set.seed(123)
+train_idx  <- sample(1:nrow(ml_data), size = 0.7 * nrow(ml_data))
+train_data <- ml_data[train_idx, ]
+test_data  <- ml_data[-train_idx, ]
+actual     <- test_data$HeartDisease
+
+evaluate_model <- function(predicted, actual, model_name) {
+  cm <- table(Predicted = predicted, Actual = actual)
+  TP <- cm["Yes", "Yes"]
+  TN <- cm["No", "No"]
+  FP <- cm["Yes", "No"]
+  FN <- cm["No", "Yes"]
+  
+  accuracy  <- (TP + TN) / sum(cm)
+  error     <- 1 - accuracy
+  precision <- TP / (TP + FP)
+  recall    <- TP / (TP + FN)
+  f_measure <- (2 * precision * recall) / (precision + recall)
+  
+  data.frame(
+    Model                = model_name,
+    Accuracy             = round(accuracy * 100, 2),
+    Classification_Error = round(error * 100, 2),
+    Precision            = round(precision * 100, 2),
+    Recall               = round(recall * 100, 2),
+    F_Measure            = round(f_measure * 100, 2)
+  )
+}
+
+# 1. Naive Bayes
+nb_model <- naiveBayes(HeartDisease ~ ., data = train_data)
+res_nb   <- evaluate_model(predict(nb_model, test_data), actual, "Naive Bayes")
+
+# 2. Decision Tree
+dt_model <- rpart(HeartDisease ~ ., data = train_data, method = "class")
+res_dt   <- evaluate_model(predict(dt_model, test_data, type = "class"), actual, "Decision Tree")
+
+# 3. KNN (k = 5)
+num_cols  <- c("Age", "BloodPressure", "Cholesterol", "HeartRate", "QuantumPatternFeature")
+train_num <- scale(train_data[, num_cols])
+test_num  <- scale(test_data[, num_cols],
+                   center = attr(train_num, "scaled:center"),
+                   scale  = attr(train_num, "scaled:scale"))
+res_knn   <- evaluate_model(knn(train_num, test_num, cl = train_data$HeartDisease, k = 5), actual, "KNN (k=5)")
+
+# 4. SVM (Radial Kernel)
+svm_model <- svm(HeartDisease ~ ., data = train_data, kernel = "radial")
+res_svm   <- evaluate_model(predict(svm_model, test_data), actual, "SVM (Radial)")
+
+comparison_table <- rbind(res_nb, res_dt, res_knn, res_svm)
+knitr::kable(comparison_table, caption = "Performance Comparison of Classification Algorithms (%)")
+
+barplot(comparison_table$Accuracy,
+        names.arg = comparison_table$Model,
+        col = c("steelblue", "darkorange", "seagreen", "purple"),
+        ylim = c(0, 100),
+        main = "Model Accuracy Comparison (%)",
+        ylab = "Accuracy (%)")
+```
+
+**Model Comparison Conclusion:** **Decision Tree** achieved the highest predictive accuracy (**93.33%**) and F-Measure (**93.75%**), demonstrating superior capability in capturing threshold-based rules across `QuantumPatternFeature` and `Age`. Both **Naive Bayes** and **SVM (Radial)** followed closely with **90.67%** accuracy, while **KNN (k=5)** achieved **86.00%** accuracy.
+
+***
+
+# References (APA Format)
+
+* James, G., Witten, D., Hastie, T., & Tibshirani, R. (2021). *An introduction to statistical learning with applications in R* (2nd ed.). Springer.
+* Mailund, T. (2017). *Beginning data science in R: Data analysis, visualization, and modelling for the data scientist*. Apress.
+* R Core Team. (2024). *R: A language and environment for statistical computing*. R Foundation for Statistical Computing. https://r-project.org
+* Venables, W. N., Smith, D. M., & R Core Team. (2024). *An introduction to R* (Version 4.4.0). R Foundation for Statistical Computing.
