@@ -6,7 +6,7 @@
 ![Course](https://shields.io)
 
 ### 🌐 Live Interactive Report
-👉 **[Click Here to View the Full Interactive HTML Report Online](https://yazan-qasem.github.io/R-Data-Science-Project/)**
+👉 **[Click Here to View the Full Interactive HTML Report Online](https://yazan-qasem.github.io/R-Data-Science-Project/Report/HTML.html)**
 
 ---
 
